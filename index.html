@@ -1486,10 +1486,13 @@
     }
 
     // 크기 결정: 여백 높이에 맞추고, 윗줄이 폭을 넘으면 줄인다. 메모 줄 수까지 포함해 블록 높이 계산.
+    // CAM_SCALE: 카메라기종(첫째 줄)만 기준 대비 10% 작게 — 둘째 줄·메모는 기준 크기를 그대로 둔다.
+    var CAM_SCALE = 0.90;
     function measureBlock(k){
-      fs1 = Math.max(4, Math.min(bottomH * 0.30, L.W * 0.047) * k);
-      fs2 = fs1 * 0.60;
-      fsMemo = fs1 * 0.56;
+      var base = Math.max(4, Math.min(bottomH * 0.30, L.W * 0.047) * k);
+      fs1 = base * CAM_SCALE;
+      fs2 = base * 0.60;
+      fsMemo = base * 0.56;
       tracking = fs1 * 0.05;
       var ind = markIndent(fs1);
 
@@ -1498,9 +1501,10 @@
         var maxW1 = innerW - ind;
         var w1 = measureTracked(ctx, t1, tracking);
         if (w1 > maxW1 && w1 > 0){
-          fs1 = Math.max(fs1 * (maxW1 / w1), fs1 * 0.62);   // 너무 작아지지 않게 바닥
-          fs2 = fs1 * 0.60;
-          fsMemo = fs1 * 0.56;
+          var fit = Math.max(maxW1 / w1, 0.62);        // 너무 작아지지 않게 바닥
+          fs1 = fs1 * fit;
+          fs2 = fs2 * fit;
+          fsMemo = fsMemo * fit;
           tracking = fs1 * 0.05;
           ind = markIndent(fs1);
         }
