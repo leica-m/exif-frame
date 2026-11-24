@@ -159,6 +159,7 @@
   }
   .field input[type=text]:focus,.field textarea:focus{outline:2px solid #12141a;outline-offset:-1px;background:#fff;}
   .field .hint{font-size:11px;color:#9aa0a9;margin-top:5px;}
+  .hint-line{font-size:11px;color:#9aa0a9;margin-top:6px;line-height:1.4;}
 
   .sub-btn{
     border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 12px;
@@ -359,7 +360,7 @@
     </div>
 
     <div class="field">
-      <label for="date">날짜 (오른쪽 아래)</label>
+      <label for="date">날짜 (여백 표기 · 필름 스탬프)</label>
       <input type="text" id="date" placeholder="2026.11.21" autocomplete="off" />
       <div class="hint" id="dateHint">EXIF 촬영일이 자동으로 들어갑니다 · 지우면 표시 안 됨</div>
     </div>
@@ -375,10 +376,20 @@
         <button class="chip is-on" type="button" data-toggle="showCam" aria-pressed="true">카메라명</button>
         <button class="chip is-on" type="button" data-toggle="showLens" aria-pressed="true">렌즈명</button>
         <button class="chip is-on" type="button" data-toggle="showSpecs" aria-pressed="true">촬영값</button>
-        <button class="chip is-on" type="button" data-toggle="showDate" aria-pressed="true">날짜</button>
+        <button class="chip" type="button" data-toggle="showDate" aria-pressed="false">날짜</button>
         <button class="chip is-on" type="button" data-toggle="redDot" aria-pressed="true">로고</button>
       </div>
     </div>
+
+    <div class="row" id="dateStyleRow" style="margin-top:14px">
+      <span class="lbl">날짜 스타일</span>
+      <span class="val" id="dateStyleVal">하단 여백</span>
+    </div>
+    <div class="seg" id="dateStyleSeg" role="group" aria-label="날짜 스타일" style="margin-top:6px" aria-disabled="true">
+      <button type="button" data-date-style="margin" aria-pressed="true">여백 표기</button>
+      <button type="button" data-date-style="film" aria-pressed="false">필름 스탬프</button>
+    </div>
+    <div class="hint-line" id="dateStyleHint">필름 스탬프는 사진 안쪽 오른쪽 아래에 7세그먼트 숫자로 인화됩니다.</div>
 
     <div class="row" id="logoStyleRow" style="margin-top:12px">
       <span class="lbl">로고 스타일</span>
@@ -472,7 +483,8 @@
     showCam: true,
     showLens: true,
     showSpecs: true,
-    showDate: true,
+    showDate: false,     // 앱을 열 때마다 항상 OFF로 시작(저장·복원하지 않음). 날짜 입력 또는 칩으로만 켜진다.
+    dateStyle: 'margin', // 'margin'(하단 여백 표기) | 'film'(사진 위 필름 데이터백 인쇄)
     redDot: true,
     logoStyle: 'dot',    // 'dot'(레드닷) | 'ring'(빨간 원 + 검은 링) | 'wetzlar'(흰 바탕 클래식 배지)
     layout: null
@@ -486,7 +498,7 @@
   ['stage','empty','preview','pickBtn','pickLabel','fileInput','fileMeta','exifBox','exifTable',
    'strip','stripCount','thumbs',
    'border','bottom','borderVal','bottomVal','textSize','textSizeVal','ratioSeg','ratioVal','bgRow','containRow',
-   'contain','line1','line2','date','dateHint','memo','memoHint','toggles','logoStyleRow','logoStyleSeg','refillBtn','exifState','textBadge','applyMemoRow','applyMemoBtn',
+   'contain','line1','line2','date','dateHint','memo','memoHint','toggles','dateStyleRow','dateStyleSeg','dateStyleVal','logoStyleRow','logoStyleSeg','refillBtn','exifState','textBadge','applyMemoRow','applyMemoBtn',
    'saveBtn','shareBtn','modal','sheetSingle','sheetBatch',
    'outImg','outInfo','downloadBtn','shareSheetBtn','closeBtn',
    'batchTitle','batchInfo','batchBar','batchFill','batchGrid','batchTip','batchActs','batchCancelWrap',
@@ -1064,6 +1076,155 @@
     if (style === 'ring') strokeLogoRing(ctx, cx, cy, r * 1.09, Math.max(0.7, r * 0.09));
   }
 
+  /* ══════════════════════════════════════
+     필름 스탬프 — 1990년대 데이터백 날짜 인화
+     7세그먼트 LED 숫자를 캔버스 경로로 직접 그린다(외부 폰트 불필요).
+     ══════════════════════════════════════ */
+
+  // 세그먼트 순서 a(위) b(우상) c(우하) d(아래) e(좌하) f(좌상) g(가운데)
+  var SEG7 = {
+    '0': [1,1,1,1,1,1,0], '1': [0,1,1,0,0,0,0], '2': [1,1,0,1,1,0,1],
+    '3': [1,1,1,1,0,0,1], '4': [0,1,1,0,0,1,1], '5': [1,0,1,1,0,1,1],
+    '6': [1,0,1,1,1,1,1], '7': [1,1,1,0,0,0,0], '8': [1,1,1,1,1,1,1],
+    '9': [1,1,1,1,0,1,1]
+  };
+
+  // 입력값을 데이터백 표기로: 2026.11.24 / 2026-11-24 / 2026년 11월 24일 → '26 11 24
+  // 그 밖의 형식은 사용자가 쓴 글자를 그대로 7세그먼트로 그린다.
+  function filmStampText(raw){
+    var s = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    var m = s.match(/^(\d{4})\s*[.\-\/년]\s*(\d{1,2})\s*[.\-\/월]\s*(\d{1,2})\s*일?$/);
+    if (m) return "'" + m[1].slice(2) + ' ' + z2(+m[2]) + ' ' + z2(+m[3]);
+    return s.toUpperCase();
+  }
+
+  // 7세그먼트 획 하나 — 끝을 살짝 늘려(ov) 이웃 획과 맞물리게 긋는다
+  function seg7Bar(ctx, x0, y0, x1, y1, t, ov){
+    var dx = x1 - x0, dy = y1 - y0;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / len, uy = dy / len;
+    ctx.lineWidth = t;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(x0 - ux * ov, y0 - uy * ov);
+    ctx.lineTo(x1 + ux * ov, y1 + uy * ov);
+    ctx.stroke();
+  }
+
+  function drawStampGlyph(ctx, ch, x, y, w, h){
+    var t = h * 0.170;                       // 세그먼트 획 두께
+    var r;                                   // 임시 반지름
+
+    if (SEG7[ch]){
+      var segs = SEG7[ch];
+      var m = t * 0.55;                      // 글자 상자 여백
+      var ov = t * 0.38;                     // 이웃 세그먼트끼리 맞물리는 길이
+      var x0 = x + m, x1 = x + w - m;
+      var y0 = y + m, y1 = y + h * 0.5, y2 = y + h - m;
+      if (segs[0]) seg7Bar(ctx, x0, y0, x1, y0, t, ov);
+      if (segs[1]) seg7Bar(ctx, x1, y0, x1, y1, t, ov);
+      if (segs[2]) seg7Bar(ctx, x1, y1, x1, y2, t, ov);
+      if (segs[3]) seg7Bar(ctx, x0, y2, x1, y2, t, ov);
+      if (segs[4]) seg7Bar(ctx, x0, y1, x0, y2, t, ov);
+      if (segs[5]) seg7Bar(ctx, x0, y0, x0, y1, t, ov);
+      if (segs[6]) seg7Bar(ctx, x0, y1, x1, y1, t, ov);
+      return;
+    }
+
+    if (ch === "'"){                        // 연도 표시(위쪽에 짧은 틱)
+      ctx.lineWidth = t * 0.62;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.60, y + h * 0.03);
+      ctx.lineTo(x + w * 0.47, y + h * 0.21);
+      ctx.stroke();
+      return;
+    }
+
+    if (ch === '.'){                         // 마침표(하단 정렬 · 둥근 사각 점)
+      r = h * 0.075;
+      ctx.beginPath();
+      ctx.arc(x + w * 0.5, y + h - r * 0.2, r, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    if (ch === ':'){                         // 콜론(점 두 개)
+      r = h * 0.068;
+      ctx.beginPath();
+      ctx.arc(x + w * 0.5, y + h * 0.34, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x + w * 0.5, y + h * 0.72, r, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    if (ch === '-' || ch === '\u2013' || ch === '\u2014'){   // 가운뎃줄
+      seg7Bar(ctx, x + w * 0.20, y + h * 0.5, x + w * 0.80, y + h * 0.5, t * 0.9, 0);
+      return;
+    }
+
+    if (ch === '/'){                         // 슬래시
+      seg7Bar(ctx, x + w * 0.80, y + h * 0.07, x + w * 0.20, y + h * 0.93, t * 0.8, 0);
+      return;
+    }
+    // 미지원 문자 → 얇은 모노스페이스 폴백
+    ctx.font = '600 ' + (h * 0.74) + 'px ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(ch, x + w * 0.5, y + h * 0.96);
+  }
+
+  function drawFilmStamp(ctx, L, raw){
+    var text = filmStampText(raw).replace(/\s+$/, '');
+    if (!text) return;
+
+    var k = Math.max(0.3, Math.min(2.5, (state.textSize || 100) / 100));
+    var shortSide = Math.min(L.cw, L.ch);
+    var h = Math.max(5, shortSide * 0.026 * k);   // 숫자 높이 ≈ 사진 짧은 변의 2.6%
+    var cell = h * 0.745;                         // 한 글자 폭(데이터백은 고정폭)
+    var w = h * 0.560;
+    var rightPad = shortSide * 0.038;             // 우측 여백 ≈ 3.8%
+    var bottomPad = shortSide * 0.036;            // 하단 여백 ≈ 3.6%
+
+    var right = L.cx + L.cw - rightPad;
+    var bottom = L.cy + L.ch - bottomPad;
+    var totalW = cell * text.length;
+    var maxW = L.cw * 0.90;
+    if (totalW > maxW){                           // 긴 문구는 폭 안에 들어오도록 축소
+      var f = maxW / totalW;
+      h *= f; cell *= f; w *= f; totalW = cell * text.length;
+    }
+    var left = right - totalW;
+    var top = bottom - h;
+    var SKEW = -0.12;                             // 데이터백 특유의 살짝 기운 글자
+
+    function paint(color, alpha, blur, blurAlpha){
+      ctx.save();
+      ctx.translate(left, top);
+      ctx.transform(1, 0, SKEW, 1, 0, 0);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      if (blur){
+        ctx.shadowColor = 'rgba(255,59,0,' + blurAlpha + ')';
+        ctx.shadowBlur = blur;
+      }
+      for (var i = 0; i < text.length; i++){
+        var ch = text.charAt(i);
+        if (ch === ' ') continue;
+        drawStampGlyph(ctx, ch, i * cell + (cell - w) / 2, 0, w, h);
+      }
+      ctx.restore();
+    }
+
+    paint('#FF3B00', 0.34, h * 0.62, 0.85);       // 1차: 넓게 번지는 붉은 빛
+    paint('#FF3B00', 0.55, h * 0.20, 0.90);       // 2차: 가까운 글로우
+    paint('#FF5E1A', 1.00, 0, 0);                 // 코어(오렌지-레드)
+  }
+
   function drawFrame(ctx, L, item){
     var st = state;
     var img = item.img;
@@ -1090,6 +1251,16 @@
     }
     ctx.restore();
 
+    // ── 필름 스탬프 (사진 안쪽 오른쪽 아래 · 데이터백 인화)
+    var dateRaw = st.showDate ? cleanStr(item.date) : '';
+    var filmDate = (st.dateStyle === 'film' && dateRaw) ? dateRaw : '';
+    if (filmDate){
+      ctx.save();
+      drawFilmStamp(ctx, L, filmDate);
+      ctx.restore();
+    }
+    var marginDate = filmDate ? '' : dateRaw;   // 필름 스탬프를 쓸 땐 여백에 날짜를 겹쳐 쓰지 않는다
+
     // ── 하단 여백 텍스트
     var bottomH = L.bottomH;
     if (bottomH < 10) { ctx.restore(); return; }
@@ -1099,7 +1270,7 @@
     var t1 = st.showCam ? cleanStr(item.text1) : '';
     var t2 = cleanStr(item.text2);
     var memo = cleanStr(item.memo);
-    var date = st.showDate ? cleanStr(item.date) : '';
+    var date = marginDate;
 
     var ink = dark ? '#F4F5F7' : '#111318';
     var inkSoft = dark ? 'rgba(244,245,247,.70)' : 'rgba(17,19,24,.56)';
@@ -1861,6 +2032,7 @@
     var item = current();
     if (!item) return;
     syncLogoStyleUI();
+    syncDateStyleUI();
     els.line1.value = item.text1 || '';
     els.line2.value = item.text2 || '';
     els.date.value = item.date || '';
@@ -1952,9 +2124,36 @@
   }
 
   function updateDateHint(){
-    els.dateHint.textContent = state.showDate
-      ? 'EXIF 촬영일이 자동으로 들어갑니다 · 지우면 표시 안 됨'
-      : '‘날짜’ 칩이 꺼져 있어 사진에 표시되지 않습니다';
+    if (!state.showDate){
+      els.dateHint.textContent = '‘날짜’ 칩이 꺼져 있습니다 · 날짜를 입력하면 자동으로 켜집니다';
+      return;
+    }
+    els.dateHint.textContent = state.dateStyle === 'film'
+      ? '사진 안쪽 오른쪽 아래에 데이터백 스타일로 인화됩니다 (예: ’26 11 24)'
+      : 'EXIF 촬영일이 자동으로 들어갑니다 · 지우면 표시 안 됨';
+  }
+
+  // 날짜 스타일 세그먼트(여백 표기 / 필름 스탬프) 상태를 화면에 반영
+  function syncDateStyleUI(){
+    var on = !!state.showDate;
+    els.dateStyleSeg.setAttribute('aria-disabled', on ? 'false' : 'true');
+    els.dateStyleRow.style.opacity = on ? '1' : '.45';
+    els.dateStyleVal.textContent = state.dateStyle === 'film' ? '사진 위 인화' : '하단 여백';
+    Array.prototype.forEach.call(els.dateStyleSeg.querySelectorAll('button'), function(b){
+      b.setAttribute('aria-pressed', b.dataset.dateStyle === state.dateStyle ? 'true' : 'false');
+    });
+    updateDateHint();
+  }
+
+  // 날짜 표시 ON/OFF — 칩·입력칸·세그먼트 상태를 한 번에 맞춘다
+  function setShowDate(on){
+    state.showDate = !!on;
+    var chip = els.toggles.querySelector('button[data-toggle="showDate"]');
+    if (chip){
+      chip.classList.toggle('is-on', state.showDate);
+      chip.setAttribute('aria-pressed', state.showDate ? 'true' : 'false');
+    }
+    syncDateStyleUI();
   }
 
   function updateMemoHint(){
@@ -2110,6 +2309,9 @@
     if (!item) return;
     item.date = els.date.value;
     item.dateEdited = true;
+    // 입력·수정하면 날짜 표시를 자동으로 켜고, 완전히 비우면 다시 끈다.
+    var hasValue = cleanStr(els.date.value) !== '';
+    if (hasValue !== !!state.showDate) setShowDate(hasValue);
     scheduleRender();
   });
   els.memo.addEventListener('input', function(){
@@ -2132,12 +2334,25 @@
     var b = e.target.closest('button[data-toggle]');
     if (!b) return;
     var key = b.dataset.toggle;
+    if (key === 'showDate'){
+      setShowDate(!state.showDate);
+      scheduleRender();
+      return;
+    }
     state[key] = !state[key];
     b.classList.toggle('is-on', state[key]);
     b.setAttribute('aria-pressed', state[key] ? 'true' : 'false');
     if (key === 'showLens' || key === 'showSpecs') refillAllAuto();
-    if (key === 'showDate') updateDateHint();
     if (key === 'redDot') syncLogoStyleUI();
+    scheduleRender();
+  });
+
+  els.dateStyleSeg.addEventListener('click', function(e){
+    if (!state.showDate) return;
+    var b = e.target.closest('button[data-date-style]');
+    if (!b) return;
+    state.dateStyle = b.dataset.dateStyle;
+    syncDateStyleUI();
     scheduleRender();
   });
 
@@ -2221,6 +2436,9 @@
     setTimeout(function(){ if (current()) render(); }, 250);
   });
 
+  // 초기 상태: 날짜 OFF → 날짜 스타일 세그먼트가 흐리게 비활성
+  syncDateStyleUI();
+
   // 테스트/디버그 훅
   window.__exifFrame = {
     get state(){ return state; },
@@ -2238,6 +2456,8 @@
       return cv ? cv.toDataURL('image/jpeg', 0.95) : null;
     },
     build: function(){ return exportCanvas(current()); },
+    stampText: filmStampText,
+    stampGlyph: function(ctx, ch, x, y, w, h){ drawStampGlyph(ctx, ch, x, y, w, h); },
     logo: function(){ return { ready: leicaReady(), w: leicaImg ? leicaImg.naturalWidth : 0,
                                h: leicaImg ? leicaImg.naturalHeight : 0,
                                tainted: leicaTainted, path2d: !!leicaPath,
