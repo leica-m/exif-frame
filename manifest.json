@@ -1,7 +1,7 @@
 {
   "name": "EXIF 프레임",
   "short_name": "EXIF 프레임",
-  "description": "라이카 스타일 흰 테두리와 EXIF 정보를 사진에 입혀 JPEG로 저장합니다.",
+  "description": "라이카 · 후지필름 · 니콘 · 아이폰 로고와 EXIF 정보를 흰 테두리 프레임에 담아 JPEG로 저장합니다.",
   "lang": "ko",
   "dir": "ltr",
   "start_url": "./",

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="light" />
 <meta name="theme-color" content="#111827" />
-<meta name="description" content="라이카 스타일 흰 테두리와 EXIF 정보를 사진에 입혀 JPEG로 저장하는 웹앱" />
+<meta name="description" content="라이카 · 후지필름 · 니콘 · 아이폰 로고와 EXIF 정보를 흰 테두리 프레임에 담아 JPEG로 저장하는 웹앱" />
 <!-- PWA / 홈 화면 앱 설치 -->
 <link rel="manifest" href="manifest.json" />
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
@@ -133,6 +133,11 @@
   .mini-dot{background:#ED1C24;}
   .mini-ring{background:#ED1C24;box-shadow:0 0 0 1.5px #111827;}
   .mini-wetz{background:#fff;border:1.5px solid #111827;}
+  .mini-auto{background:conic-gradient(#ED1C24 0 50%,#111827 50% 100%);}
+  .mini-fuji{background:#ED1C24;border-radius:2.5px;}
+  .mini-nikon{background:#FFE600;border-radius:2.5px;box-shadow:inset 0 0 0 1px rgba(17,24,39,.28);}
+  .mini-apple{background:#111827;}
+  #brandSeg button{letter-spacing:.01em;}
 
   /* 스와치 */
   .sw-row{display:flex;gap:10px;align-items:center;}
@@ -253,7 +258,7 @@
 
 <div class="appbar">
   <h1>EXIF 프레임</h1>
-  <span class="sub">Leica style</span>
+  <span class="sub">Camera style</span>
 </div>
 
 <div class="stage" id="stage">
@@ -393,12 +398,20 @@
 
     <div class="row" id="logoStyleRow" style="margin-top:12px">
       <span class="lbl">로고 스타일</span>
+      <span class="val" id="logoStyleVal">자동</span>
     </div>
     <div class="seg" id="logoStyleSeg" role="group" aria-label="로고 스타일" style="margin-top:6px">
-      <button type="button" data-logo="dot" aria-pressed="true"><i class="mini mini-dot"></i>레드닷</button>
+      <button type="button" data-logo="auto" aria-pressed="true"><i class="mini mini-auto"></i>자동</button>
+      <button type="button" data-logo="dot" aria-pressed="false"><i class="mini mini-dot"></i>레드닷</button>
       <button type="button" data-logo="ring" aria-pressed="false"><i class="mini mini-ring"></i>블랙 링</button>
       <button type="button" data-logo="wetzlar" aria-pressed="false"><i class="mini mini-wetz"></i>Wetzlar</button>
     </div>
+    <div class="seg" id="brandSeg" role="group" aria-label="브랜드 로고" style="margin-top:6px">
+      <button type="button" data-logo="fujifilm" aria-pressed="false"><i class="mini mini-fuji"></i>FUJIFILM</button>
+      <button type="button" data-logo="nikon" aria-pressed="false"><i class="mini mini-nikon"></i>NIKON</button>
+      <button type="button" data-logo="apple" aria-pressed="false"><i class="mini mini-apple"></i>Apple</button>
+    </div>
+    <div class="hint-line" id="logoHint">자동이면 카메라명·EXIF의 브랜드(라이카 · 후지필름 · 니콘 · 아이폰)에 맞춰 로고가 바뀝니다. 브랜드를 못 알아보면 로고를 그리지 않습니다.</div>
 
     <div class="row" style="margin-top:12px">
       <button class="sub-btn" id="refillBtn" type="button">EXIF로 다시 채우기</button>
@@ -486,7 +499,8 @@
     showDate: false,     // 앱을 열 때마다 항상 OFF로 시작(저장·복원하지 않음). 날짜 입력 또는 칩으로만 켜진다.
     dateStyle: 'margin', // 'margin'(하단 여백 표기) | 'film'(사진 위 필름 데이터백 인쇄)
     redDot: true,
-    logoStyle: 'dot',    // 'dot'(레드닷) | 'ring'(빨간 원 + 검은 링) | 'wetzlar'(흰 바탕 클래식 배지)
+    logoStyle: 'auto',   // 'auto'(카메라명/EXIF로 자동) | 'dot' | 'ring' | 'wetzlar' | 'fujifilm' | 'nikon' | 'apple'
+    leicaStyle: 'dot',   // 자동일 때 라이카 사진에 쓸 스타일(마지막으로 고른 라이카 스타일 기억)
     layout: null
   };
 
@@ -498,7 +512,7 @@
   ['stage','empty','preview','pickBtn','pickLabel','fileInput','fileMeta','exifBox','exifTable',
    'strip','stripCount','thumbs',
    'border','bottom','borderVal','bottomVal','textSize','textSizeVal','ratioSeg','ratioVal','bgRow','containRow',
-   'contain','line1','line2','date','dateHint','memo','memoHint','toggles','dateStyleRow','dateStyleSeg','dateStyleVal','logoStyleRow','logoStyleSeg','refillBtn','exifState','textBadge','applyMemoRow','applyMemoBtn',
+   'contain','line1','line2','date','dateHint','memo','memoHint','toggles','dateStyleRow','dateStyleSeg','dateStyleVal','logoStyleRow','logoStyleSeg','logoStyleVal','brandSeg','logoHint','refillBtn','exifState','textBadge','applyMemoRow','applyMemoBtn',
    'saveBtn','shareBtn','modal','sheetSingle','sheetBatch',
    'outImg','outInfo','downloadBtn','shareSheetBtn','closeBtn',
    'batchTitle','batchInfo','batchBar','batchFill','batchGrid','batchTip','batchActs','batchCancelWrap',
@@ -1077,6 +1091,191 @@
   }
 
   /* ══════════════════════════════════════
+     브랜드 로고 — 후지필름 · 니콘 · 아이폰
+     Wikimedia Commons의 공식 SVG(Fujifilm_logo.svg / Nikon_Logo.svg / Apple_logo_black.svg)에서
+     path 데이터를 그대로 꺼내 좌표 변환을 미리 계산해 둔 값만 씁니다(외부 요청 0).
+     Path2D로 직접 채우므로 캔버스를 오염시키지 않고, 배경 밝기에 맞춰 색만 바꿔 그립니다.
+     ══════════════════════════════════════ */
+  var BRAND_LOGOS = {
+    fujifilm: {
+      box: { x: 0, y: 0, w: 1028.94, h: 171.23 },
+      paths: [
+        { k: 'ink', d: 'M 783.79 0.02 L 783.79 134.04 C 783.79 142.75 788.09 147.23 796.85 147.67 C 796.96 147.68 841.01 147.68 841.01 147.68 L 841.01 162.71 C 841.01 164.39 840.11 165.57 838.24 165.57 L 766.74 165.57 C 744.66 165.57 741.39 153.41 741.39 142.37 L 741.39 9.13 C 741.39 2.84 743.79 -0.13 751.22 0.03 L 783.79 0.02' },
+        { k: 'ink', d: 'M 701.39 0.02 L 701.40 156.84 C 701.40 163.82 698.45 165.57 692.51 165.57 L 658.97 165.57 L 658.97 8.68 C 658.97 3.51 660.94 0.03 668.47 0.03 L 701.39 0.02' },
+        { k: 'ink', d: 'M 0.00 22.84 C 0.00 10.22 0.03 -0.00 20.76 -0.00 L 111.90 -0.00 L 111.90 15.93 C 111.90 17.07 111.36 18.09 109.77 18.09 L 55.16 18.07 C 47.82 18.07 44.13 21.60 44.13 29.00 L 44.13 71.04 L 108.39 71.04 L 108.40 87.73 C 108.40 89.21 107.47 89.99 106.02 89.99 L 44.13 89.99 L 44.13 156.70 C 43.99 163.13 40.78 165.69 33.72 165.56 L 0.00 165.56 L 0.00 22.84' },
+        { k: 'ink', d: 'M 177.72 0.00 L 177.72 126.19 C 177.72 137.03 179.25 144.62 186.86 149.01 C 197.05 154.91 214.30 155.00 224.69 149.18 C 231.80 145.21 234.51 138.84 234.51 126.23 L 234.51 8.42 C 234.51 3.12 236.53 0.00 243.94 0.00 L 276.92 0.00 L 276.93 122.46 C 276.93 150.91 259.02 162.58 243.19 166.91 C 222.12 172.65 190.11 172.74 170.23 166.77 C 146.48 159.62 135.38 145.56 135.35 122.47 L 135.33 8.51 C 135.33 3.01 137.31 0.00 143.64 0.00 L 177.72 0.00' },
+        { k: 'ink', d: 'M 979.89 0.03 C 971.53 0.03 966.75 3.93 964.87 11.40 L 937.85 125.56 L 937.12 125.54 L 909.22 0.03 L 871.07 0.03 C 863.71 0.03 861.40 3.81 861.40 9.66 L 861.40 165.57 L 877.51 165.57 C 880.11 165.57 881.18 164.28 881.18 161.64 L 881.18 30.92 L 883.73 30.92 L 918.22 165.57 L 940.80 165.57 C 949.31 165.57 952.48 162.08 954.58 153.67 L 985.54 30.92 L 988.04 30.92 L 988.03 165.57 L 1018.16 165.53 C 1025.56 165.53 1028.94 162.69 1028.94 155.42 L 1028.94 0.02 L 979.89 0.03' },
+        { k: 'ink', d: 'M 478.47 89.99 L 436.06 89.99 L 436.06 165.57 L 469.60 165.57 C 475.51 165.57 478.48 163.84 478.48 156.84 C 478.48 156.84 478.47 124.51 478.47 89.99' },
+        { k: 'red', d: 'M 476.00 57.69 C 477.49 56.48 478.36 55.58 478.47 52.98 L 478.47 0.03 L 445.54 0.03 C 438.13 0.03 436.07 3.65 436.07 8.81 L 436.07 88.97 L 476.00 57.69' },
+        { k: 'ink', d: 'M 330.61 152.48 C 349.03 149.87 355.15 138.93 355.15 122.80 L 355.15 9.01 C 355.15 2.21 358.84 0.00 363.59 0.00 L 397.56 0.00 L 397.56 107.59 C 397.56 134.05 391.99 147.41 376.32 158.69 C 368.16 164.55 353.90 171.22 322.99 171.22 C 305.30 171.22 297.43 170.23 296.37 169.98 C 294.88 169.64 294.27 168.72 294.27 167.42 L 294.27 153.53 C 301.54 153.74 318.18 154.25 330.61 152.48' },
+        { k: 'ink', d: 'M 542.73 0.00 C 522.01 0.00 522.00 10.22 522.00 22.84 L 522.00 65.50 C 522.00 66.38 521.62 66.73 521.22 67.12 L 492.21 89.98 L 522.00 89.98 L 522.00 165.56 L 555.70 165.56 C 562.76 165.69 565.97 163.12 566.09 156.70 L 566.09 90.00 L 627.98 90.00 C 629.44 90.00 630.37 89.21 630.37 87.74 L 630.37 71.03 L 566.09 71.03 L 566.09 29.00 C 566.09 21.60 569.79 18.07 577.13 18.07 L 631.76 18.09 C 633.33 18.09 633.88 17.07 633.88 15.94 L 633.88 0.00 L 542.73 0.00' }
+      ]
+    },
+    nikon: {
+      box: { x: 10.96, y: 284.67, w: 374.06, h: 103.45 },
+      paths: [
+        { k: 'ink', d: 'M 144.98 385.40 L 166.58 288.08 L 193.20 288.09 L 181.59 339.85 L 203.09 313.89 L 232.85 313.89 L 206.15 346.34 L 217.16 385.40 L 190.60 385.40 L 179.62 348.39 L 170.93 385.40 L 144.98 385.40 Z M 48.87 336.48 L 67.63 385.40 L 93.14 385.40 L 115.12 288.08 L 88.85 288.09 L 77.72 337.59 L 59.32 288.06 L 32.68 288.06 L 10.96 385.40 L 37.75 385.40 C 40.79 369.80 44.86 353.33 48.87 336.48 Z M 132.24 385.40 L 148.17 313.93 L 122.03 313.93 L 106.09 385.40 L 132.24 385.40 Z M 123.37 298.27 C 123.37 300.52 123.89 308.45 138.20 308.45 C 150.09 308.45 154.67 300.83 154.67 295.14 C 154.67 291.32 151.54 284.67 139.83 284.67 C 129.04 284.68 123.37 291.89 123.37 298.27 Z M 374.82 312.97 C 363.64 309.64 349.79 315.16 342.95 324.62 C 343.62 321.69 344.33 318.28 345.13 314.35 L 318.60 314.35 L 303.08 385.40 L 329.48 385.40 L 338.28 345.10 C 339.90 337.69 345.87 334.52 351.15 335.88 C 353.42 336.50 356.56 338.22 355.52 344.40 L 346.56 385.40 L 372.65 385.40 L 384.61 330.68 C 387.14 318.62 377.24 313.69 374.82 312.97 Z M 286.05 378.95 C 297.51 369.58 303.18 353.74 302.99 338.83 C 302.80 324.50 290.66 310.90 269.55 310.90 C 229.30 310.90 223.45 342.27 222.29 348.00 C 219.34 362.48 222.62 381.28 241.52 386.27 C 254.00 389.56 273.50 389.20 286.05 378.95 Z M 256.52 337.53 C 258.41 332.32 263.56 331.17 265.89 331.14 C 271.66 331.09 273.24 334.52 272.74 337.74 C 271.35 346.67 268.25 358.01 267.11 361.63 C 267.10 361.67 267.09 361.72 267.08 361.76 C 265.82 365.71 262.10 368.00 257.72 368.00 C 253.29 368.00 250.61 365.22 250.99 361.67 C 251.64 355.67 255.44 340.51 256.52 337.53 Z' }
+      ]
+    },
+    apple: {
+      box: { x: 0, y: 0, w: 814.1, h: 999.9 },
+      paths: [
+        { k: 'ink', d: 'M 788.10 340.90 C 782.30 345.40 679.90 403.10 679.90 531.40 C 679.90 679.80 810.20 732.30 814.10 733.60 C 813.50 736.80 793.40 805.50 745.40 875.50 C 702.60 937.10 657.90 998.60 589.90 998.60 S 504.40 959.10 425.90 959.10 C 349.40 959.10 322.20 999.90 260.00 999.90 S 154.40 942.90 104.50 872.90 C 46.70 790.70 0.00 663.00 0.00 541.80 C 0.00 347.40 126.40 244.30 250.80 244.30 C 316.90 244.30 372.00 287.70 413.50 287.70 C 453.00 287.70 514.60 241.70 589.80 241.70 C 618.30 241.70 720.70 244.30 788.10 340.90 Z M 554.10 159.40 C 585.20 122.50 607.20 71.30 607.20 20.10 C 607.20 13.00 606.60 5.80 605.30 -0.00 C 554.70 1.90 494.50 33.70 458.20 75.80 C 429.70 108.20 403.10 159.40 403.10 211.30 C 403.10 219.10 404.40 226.90 405.00 229.40 C 408.20 230.00 413.40 230.70 418.60 230.70 C 464.00 230.70 521.10 200.30 554.10 159.40 Z' }
+      ]
+    }
+  };
+
+  var BRAND_ASPECT = {
+    fujifilm: BRAND_LOGOS.fujifilm.box.w / BRAND_LOGOS.fujifilm.box.h,
+    nikon:    BRAND_LOGOS.nikon.box.w / BRAND_LOGOS.nikon.box.h,
+    apple:    BRAND_LOGOS.apple.box.w / BRAND_LOGOS.apple.box.h
+  };
+  var BRAND_NAME = { leica: '라이카', fujifilm: '후지필름', nikon: '니콘', apple: '아이폰' };
+  var LEICA_STYLE_SET = { dot: 1, ring: 1, wetzlar: 1 };
+
+  var brandPath2DCache = {};
+  function brandPath2D(brand, i, d){
+    var list = brandPath2DCache[brand] || (brandPath2DCache[brand] = []);
+    if (list[i] !== undefined) return list[i];
+    var p = null;
+    if (typeof Path2D === 'function'){ try { p = new Path2D(d); } catch(e){ p = null; } }
+    list[i] = p;
+    return p;
+  }
+
+  // 다른 브랜드 이름이 분명히 있으면(파나소닉·소니·캐논 …) 로고를 그리지 않는다
+  var BRAND_OTHER = /panasonic|lumix|\bsony\b|canon|olympus|om system|pentax|ricoh|hasselblad|samsung|\bdji\b|gopro|xiaomi|huawei|\bpixel\b/;
+
+  // 카메라명/모델명에서 브랜드를 알아본다 (로고 자동 선택용)
+  function brandOf(text){
+    var s = String(text == null ? '' : text).toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!s || BRAND_OTHER.test(s)) return '';
+    if (/(^|[^a-z])(apple|iphone|ipad|ipod)([^a-z]|$)/.test(s)) return 'apple';
+    if (s.indexOf('leica') !== -1 || s.indexOf('leitz') !== -1) return 'leica';
+    if (s.indexOf('fuji') !== -1 || /(^|[^a-z])gfx/.test(s) ||
+        /(^|[^a-z])x-?(100[a-z]*|pro\d*|t\d+|e\d+|h\d+|s\d+|m\d+|a\d+)([^a-z0-9]|$)/.test(s)) return 'fujifilm';
+    if (s.indexOf('nikon') !== -1 || s.indexOf('nikkor') !== -1 ||
+        /(^|[^a-z])z ?f(c)?([^a-z]|$)/.test(s) || /(^|[^a-z])z ?[6789]([^a-z]|$)/.test(s) ||
+        /(^|[^a-z])(fm2|f3|df)([^a-z]|$)/.test(s)) return 'nikon';
+    return '';
+  }
+
+  // 사진 한 장의 브랜드: 사용자가 고친 카메라명 우선, 없으면 EXIF 제조사/모델
+  function detectBrand(item){
+    if (!item) return '';
+    var b = brandOf(item.text1);
+    if (!b && item.exif) b = brandOf((item.exif.make || '') + ' ' + (item.exif.model || ''));
+    return b;
+  }
+
+  // 지금 설정에서 실제로 그릴 브랜드 (''면 로고 없음)
+  function activeBrand(item){
+    if (state.logoStyle === 'auto') return detectBrand(item);
+    return LEICA_STYLE_SET[state.logoStyle] ? 'leica' : state.logoStyle;
+  }
+
+  function activeLeicaStyle(){
+    return LEICA_STYLE_SET[state.logoStyle] ? state.logoStyle : (state.leicaStyle || 'dot');
+  }
+
+  // 로고 상자 크기 — 높이는 카메라명 글자 크기(fs)에 맞추고, 폭은 원본 로고 종횡비 그대로
+  function logoBox(fs, brand, style, bottomH){
+    if (!brand) return null;
+    if (brand === 'leica'){
+      var r = Math.max(1, fs * 0.23);
+      if (style === 'wetzlar') r = Math.max(1.2, Math.min(fs * 0.86, Math.max(1.2, (bottomH || 0) * 0.40)));
+      return { w: r * 2, h: r * 2, r: r };
+    }
+    if (brand === 'fujifilm'){ var hf = fs * 0.62; return { w: hf * BRAND_ASPECT.fujifilm, h: hf }; }
+    if (brand === 'nikon')   { var hn = fs * 0.90; return { w: hn * 2.03, h: hn }; }
+    if (brand === 'apple')   { var ha = fs * 0.92; return { w: ha * BRAND_ASPECT.apple, h: ha }; }
+    return null;
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r){
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
+  // 내장 경로를 (x, y)에서 시작하는 w×h 상자에 원본 비율로 앉혀 채운다
+  function fillBrandPaths(ctx, brand, x, y, w, h, ink, red){
+    var set = BRAND_LOGOS[brand];
+    if (!set) return false;
+    var b = set.box;
+    var s = Math.min(w / b.w, h / b.h);
+    var ox = x + (w - b.w * s) / 2 - b.x * s;
+    var oy = y + (h - b.h * s) / 2 - b.y * s;
+    var ok = true;
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(s, s);
+    for (var i = 0; i < set.paths.length; i++){
+      var p = set.paths[i];
+      var path = brandPath2D(brand, i, p.d);
+      if (!path){ ok = false; break; }
+      ctx.fillStyle = (p.k === 'red') ? red : ink;
+      ctx.fill(path);
+    }
+    ctx.restore();
+    return ok;
+  }
+
+  // 니콘: 노란 사각 배지 + 검은 워드마크
+  function drawNikonBadge(ctx, x, cy, box){
+    var w = box.w, h = box.h, y = cy - h / 2;
+    ctx.save();
+    roundRectPath(ctx, x, y, w, h, h * 0.10);
+    ctx.fillStyle = '#FFE600';
+    ctx.fill();
+    var wh = h * 0.46;
+    var ww = wh * BRAND_ASPECT.nikon;
+    if (!fillBrandPaths(ctx, 'nikon', x + (w - ww) / 2, cy - wh / 2, ww, wh, '#111827', '#111827')){
+      ctx.fillStyle = '#111827';
+      ctx.font = 'italic 700 ' + (wh * 1.22) + 'px ' + FONT_STACK;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Nikon', x + w / 2, cy + wh * 0.04);
+    }
+    ctx.restore();
+  }
+
+  function drawBrandMark(ctx, x, cy, box, brand, style, dark){
+    if (!box) return;
+    if (brand === 'leica'){ drawLeicaMark(ctx, x + box.r, cy, box.r, style); return; }
+    if (brand === 'nikon'){ drawNikonBadge(ctx, x, cy, box); return; }
+    if (brand !== 'fujifilm' && brand !== 'apple') return;
+
+    var ink = dark ? '#FFFFFF' : LOGO_INK;
+    if (fillBrandPaths(ctx, brand, x, cy - box.h / 2, box.w, box.h, ink, '#ED1C24')) return;
+
+    // Path2D를 못 쓰는 환경: 글자로 근사
+    ctx.save();
+    ctx.fillStyle = ink;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    if (brand === 'fujifilm'){
+      var fs = box.h * 1.05, tr = fs * 0.02;
+      ctx.font = '700 ' + fs + 'px ' + FONT_STACK;
+      var tw = measureTracked(ctx, 'FUJIFILM', tr);
+      fillTracked(ctx, 'FUJIFILM', x + (box.w - tw) / 2, cy + fs * 0.05, tr);
+    } else {
+      ctx.font = (box.h * 1.24) + 'px ' + FONT_STACK;
+      ctx.fillText('\uF8FF', x, cy + box.h * 0.06);
+    }
+    ctx.restore();
+  }
+
+  /* ══════════════════════════════════════
      필름 스탬프 — 1990년대 데이터백 날짜 인화
      7세그먼트 LED 숫자를 캔버스 경로로 직접 그린다(외부 폰트 불필요).
      ══════════════════════════════════════ */
@@ -1278,13 +1477,12 @@
 
     var fs1 = 10, fs2 = 6, fsMemo = 6, tracking = 0, memoLines = [], blockH = 0;
 
-    // 빨간 점(라이카 로고)은 카메라명 왼쪽에 놓고, 그만큼 글줄 전체를 들여쓴다.
-    function dotBox(size, style){
-      var r = Math.max(1, size * 0.23);
-      if (style === 'wetzlar'){
-        r = Math.max(1.2, Math.min(size * 0.86, Math.max(1.2, bottomH * 0.40)));   // 배지 지름 ≈ 1.7×글자 크기(하단 여백을 넘지 않게)
-      }
-      return { r: r, indent: r * 2 + size * 0.30 };
+    // 브랜드 로고(라이카 레드닷 · 후지필름 · 니콘 · 애플)는 카메라명 왼쪽에 놓고, 그만큼 글줄 전체를 들여쓴다.
+    var brand = st.redDot ? activeBrand(item) : '';
+    var leicaStyle = activeLeicaStyle();
+    function markIndent(size){
+      var b = logoBox(size, brand, leicaStyle, bottomH);
+      return b ? b.w + size * 0.30 : 0;
     }
 
     // 크기 결정: 여백 높이에 맞추고, 윗줄이 폭을 넘으면 줄인다. 메모 줄 수까지 포함해 블록 높이 계산.
@@ -1293,7 +1491,7 @@
       fs2 = fs1 * 0.60;
       fsMemo = fs1 * 0.56;
       tracking = fs1 * 0.05;
-      var ind = st.redDot ? dotBox(fs1, st.logoStyle).indent : 0;
+      var ind = markIndent(fs1);
 
       if (t1){
         ctx.font = '600 ' + fs1 + 'px ' + FONT_STACK;
@@ -1304,7 +1502,7 @@
           fs2 = fs1 * 0.60;
           fsMemo = fs1 * 0.56;
           tracking = fs1 * 0.05;
-          ind = st.redDot ? dotBox(fs1, st.logoStyle).indent : 0;
+          ind = markIndent(fs1);
         }
       }
 
@@ -1327,9 +1525,9 @@
     if (top < L.bottomY) top = L.bottomY;
 
     // 확정된 크기에서도 폭을 넘는 문구는 줄이거나 말줄임 처리
-    var dot = dotBox(fs1, st.logoStyle);
-    var hasDot = st.redDot && (t1 || t2 || memo);
-    var indent = hasDot ? dot.indent : 0;
+    var mark = logoBox(fs1, brand, leicaStyle, bottomH);
+    var hasLogo = !!mark && (t1 || t2 || memo);
+    var indent = hasLogo ? mark.w + fs1 * 0.30 : 0;
     var textX = innerX + indent;
 
     var t1d = t1, t2d = t2, f2 = fs2;
@@ -1364,21 +1562,21 @@
     }
     baseline2 = y + fs2 * 1.06;
 
-    // 빨간 점 (라이카 로고 · 카메라명 왼쪽, 첫 글줄과 세로 중앙 정렬)
-    if (hasDot){
-      var dotBase, dotSize;
-      if (t1d){ dotBase = baseline1; dotSize = fs1; }
-      else if (t2d){ dotBase = baseline2; dotSize = fs2; }
-      else { dotBase = top + fsMemo * 1.14; dotSize = fsMemo; }
-      var dotY = dotBase - dotSize * 0.34;
-      if (st.logoStyle === 'wetzlar'){
+    // 브랜드 로고 (카메라명 왼쪽, 첫 글줄과 세로 중앙 정렬)
+    if (hasLogo){
+      var markBase, markSize;
+      if (t1d){ markBase = baseline1; markSize = fs1; }
+      else if (t2d){ markBase = baseline2; markSize = fs2; }
+      else { markBase = top + fsMemo * 1.14; markSize = fsMemo; }
+      var markCy = markBase - markSize * 0.34;
+      if (brand === 'leica' && leicaStyle === 'wetzlar'){
         // 큰 배지가 사진 영역을 침범하지 않게 하단 여백 안으로 살짝 밀어 넣는다
-        var roomTop = L.bottomY + Math.max(2, dot.r * 0.10);
-        var roomBottom = L.bottomY + bottomH - dot.r * 0.04 - 2;
-        if (dotY - dot.r < roomTop) dotY = roomTop + dot.r;
-        if (dotY + dot.r > roomBottom) dotY = roomBottom - dot.r;
+        var roomTop = L.bottomY + Math.max(2, mark.r * 0.10);
+        var roomBottom = L.bottomY + bottomH - mark.r * 0.04 - 2;
+        if (markCy - mark.r < roomTop) markCy = roomTop + mark.r;
+        if (markCy + mark.r > roomBottom) markCy = roomBottom - mark.r;
       }
-      drawLeicaMark(ctx, innerX + dot.r, dotY, dot.r, st.logoStyle);
+      drawBrandMark(ctx, innerX, markCy, mark, brand, leicaStyle, dark);
     }
 
     // 아랫줄 (촬영값) + 오른쪽 날짜
@@ -2258,22 +2456,50 @@
     scheduleRender();
   });
 
+  var LOGO_LABEL = { auto: '자동', dot: '레드닷', ring: '블랙 링', wetzlar: 'Wetzlar', fujifilm: 'FUJIFILM', nikon: 'NIKON', apple: 'Apple' };
+
   function syncLogoStyleUI(){
     var on = !!state.redDot;
     els.logoStyleSeg.setAttribute('aria-disabled', on ? 'false' : 'true');
+    els.brandSeg.setAttribute('aria-disabled', on ? 'false' : 'true');
     els.logoStyleRow.style.opacity = on ? '1' : '.45';
+    els.logoHint.style.opacity = on ? '1' : '.45';
+    Array.prototype.forEach.call(
+      els.logoStyleSeg.querySelectorAll('button[data-logo]'), function(b){
+        b.setAttribute('aria-pressed', b.dataset.logo === state.logoStyle ? 'true' : 'false');
+      });
+    Array.prototype.forEach.call(
+      els.brandSeg.querySelectorAll('button[data-logo]'), function(b){
+        b.setAttribute('aria-pressed', b.dataset.logo === state.logoStyle ? 'true' : 'false');
+      });
+    // 값 표시: 자동일 땐 지금 사진에서 알아본 브랜드를 함께 보여준다
+    var val = LOGO_LABEL[state.logoStyle] || '자동';
+    if (state.logoStyle === 'auto'){
+      var b = activeBrand(current());
+      val = '자동 · ' + (b ? (b === 'leica' ? '라이카 ' + LOGO_LABEL[state.leicaStyle || 'dot'] : BRAND_NAME[b]) : '인식 안 됨');
+    }
+    els.logoStyleVal.textContent = val;
   }
 
-  els.logoStyleSeg.addEventListener('click', function(e){
+  function onLogoPick(e){
     if (!state.redDot) return;
     var b = e.target.closest('button[data-logo]');
     if (!b) return;
-    state.logoStyle = b.dataset.logo;
-    Array.prototype.forEach.call(els.logoStyleSeg.querySelectorAll('button'), function(x){
-      x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-    });
+    var pick = b.dataset.logo;
+    if (LEICA_STYLE_SET[pick]){
+      state.leicaStyle = pick;
+      // 자동 모드에선 라이카 사진일 때만 자동을 유지(라이카 로고 모양만 바꿈).
+      // 그 밖의 사진(다른 브랜드·브랜드 없음)에서 라이카를 골랐다면 그 로고로 고정한다.
+      if (state.logoStyle !== 'auto' || detectBrand(current()) !== 'leica') state.logoStyle = pick;
+    } else {
+      state.logoStyle = pick;
+    }
+    syncLogoStyleUI();
     scheduleRender();
-  });
+  }
+
+  els.logoStyleSeg.addEventListener('click', onLogoPick);
+  els.brandSeg.addEventListener('click', onLogoPick);
 
   els.bgRow.addEventListener('click', function(e){
     var b = e.target.closest('button[data-bg]');
@@ -2295,6 +2521,7 @@
     if (!item) return;
     item.text1 = els.line1.value;
     item.text1Edited = true;
+    syncLogoStyleUI();          // 자동 모드에선 카메라명에 따라 로고 브랜드가 바뀐다
     scheduleRender();
   });
   els.line2.addEventListener('input', function(){
@@ -2458,6 +2685,11 @@
     build: function(){ return exportCanvas(current()); },
     stampText: filmStampText,
     stampGlyph: function(ctx, ch, x, y, w, h){ drawStampGlyph(ctx, ch, x, y, w, h); },
+    brand: function(){ return { style: state.logoStyle, leicaStyle: state.leicaStyle,
+                               active: activeBrand(current()), detected: detectBrand(current()),
+                               box: logoBox(20, activeBrand(current()), activeLeicaStyle(), 100),
+                               path2d: typeof Path2D === 'function' }; },
+    detect: function(text){ return brandOf(text); },
     logo: function(){ return { ready: leicaReady(), w: leicaImg ? leicaImg.naturalWidth : 0,
                                h: leicaImg ? leicaImg.naturalHeight : 0,
                                tainted: leicaTainted, path2d: !!leicaPath,
