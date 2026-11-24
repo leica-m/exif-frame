@@ -126,6 +126,13 @@
   .seg button{flex:1;border:0;background:transparent;padding:8px 2px;border-radius:8px;
     font:inherit;font-size:13px;font-weight:600;color:#6b7078;cursor:pointer;}
   .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .seg[aria-disabled="true"]{opacity:.42;pointer-events:none;}
+  /* 로고 스타일 미리보기 점 */
+  .mini{width:11px;height:11px;border-radius:50%;display:inline-block;vertical-align:-1px;
+    margin-right:5px;box-sizing:border-box;flex:0 0 auto;}
+  .mini-dot{background:#ED1C24;}
+  .mini-ring{background:#ED1C24;box-shadow:0 0 0 1.5px #111827;}
+  .mini-wetz{background:#fff;border:1.5px solid #111827;}
 
   /* 스와치 */
   .sw-row{display:flex;gap:10px;align-items:center;}
@@ -369,8 +376,17 @@
         <button class="chip is-on" type="button" data-toggle="showLens" aria-pressed="true">렌즈명</button>
         <button class="chip is-on" type="button" data-toggle="showSpecs" aria-pressed="true">촬영값</button>
         <button class="chip is-on" type="button" data-toggle="showDate" aria-pressed="true">날짜</button>
-        <button class="chip is-on" type="button" data-toggle="redDot" aria-pressed="true">빨간 점</button>
+        <button class="chip is-on" type="button" data-toggle="redDot" aria-pressed="true">로고</button>
       </div>
+    </div>
+
+    <div class="row" id="logoStyleRow" style="margin-top:12px">
+      <span class="lbl">로고 스타일</span>
+    </div>
+    <div class="seg" id="logoStyleSeg" role="group" aria-label="로고 스타일" style="margin-top:6px">
+      <button type="button" data-logo="dot" aria-pressed="true"><i class="mini mini-dot"></i>레드닷</button>
+      <button type="button" data-logo="ring" aria-pressed="false"><i class="mini mini-ring"></i>블랙 링</button>
+      <button type="button" data-logo="wetzlar" aria-pressed="false"><i class="mini mini-wetz"></i>Wetzlar</button>
     </div>
 
     <div class="row" style="margin-top:12px">
@@ -458,6 +474,7 @@
     showSpecs: true,
     showDate: true,
     redDot: true,
+    logoStyle: 'dot',    // 'dot'(레드닷) | 'ring'(빨간 원 + 검은 링) | 'wetzlar'(흰 바탕 클래식 배지)
     layout: null
   };
 
@@ -469,7 +486,7 @@
   ['stage','empty','preview','pickBtn','pickLabel','fileInput','fileMeta','exifBox','exifTable',
    'strip','stripCount','thumbs',
    'border','bottom','borderVal','bottomVal','textSize','textSizeVal','ratioSeg','ratioVal','bgRow','containRow',
-   'contain','line1','line2','date','dateHint','memo','memoHint','toggles','refillBtn','exifState','textBadge','applyMemoRow','applyMemoBtn',
+   'contain','line1','line2','date','dateHint','memo','memoHint','toggles','logoStyleRow','logoStyleSeg','refillBtn','exifState','textBadge','applyMemoRow','applyMemoBtn',
    'saveBtn','shareBtn','modal','sheetSingle','sheetBatch',
    'outImg','outInfo','downloadBtn','shareSheetBtn','closeBtn',
    'batchTitle','batchInfo','batchBar','batchFill','batchGrid','batchTip','batchActs','batchCancelWrap',
@@ -894,10 +911,35 @@
   // 구형 Safari처럼 SVG 이미지로 캔버스가 '오염'되는 환경에서는 같은 벡터 경로(Path2D)로 직접 그린다.
   // (경로 데이터는 내장한 SVG에서 그대로 꺼내 쓴다 — 모양은 완전히 동일)
   var leicaPath = null;
+  var leicaPathD = null;
+  // 필기체 'Leica' 경로의 실제 외곽 상자(200×200 좌표계) — 배지 안에 정확히 앉히는 데 쓴다.
+  var leicaScriptBox = { x: 22, y: 44, w: 160, h: 92 };
   try {
     var _m = atob(LEICA_LOGO_B64).match(/<path[^>]*\sd="([^"]+)"/);
-    if (_m && typeof Path2D === 'function') leicaPath = new Path2D(_m[1]);
+    if (_m){
+      leicaPathD = _m[1];
+      if (typeof Path2D === 'function') leicaPath = new Path2D(leicaPathD);
+      var _bb = svgPathBox(leicaPathD);
+      if (_bb) leicaScriptBox = _bb;
+    }
   } catch(e){ leicaPath = null; }
+
+  function svgPathBox(d){
+    try {
+      var ns = 'http://www.w3.org/2000/svg';
+      var svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('viewBox', '0 0 200 200');
+      svg.style.cssText = 'position:absolute;left:-9999px;top:0;width:10px;height:10px;opacity:0;pointer-events:none;';
+      var pth = document.createElementNS(ns, 'path');
+      pth.setAttribute('d', d);
+      svg.appendChild(pth);
+      document.body.appendChild(svg);
+      var b = pth.getBBox();
+      document.body.removeChild(svg);
+      if (b && b.width > 1 && b.height > 1) return { x: b.x, y: b.y, w: b.width, h: b.height };
+    } catch(e){}
+    return null;
+  }
   var leicaTainted = false;
 
   function leicaProbe(){
@@ -915,7 +957,7 @@
   }
 
   // 빨간 점 자리에 실제 라이카 레드닷을 그린다(가운데 cx,cy · 원 반지름 r).
-  function drawLeicaMark(ctx, cx, cy, r){
+  function drawRedDot(ctx, cx, cy, r){
     var d = (r * 2) / LEICA_LOGO_INSET;      // 원본 여백만큼 키워 빨간 원 지름이 2r이 되게
     if (leicaReady() && !leicaTainted){
       ctx.drawImage(leicaImg, cx - d / 2, cy - d / 2, d, d);
@@ -940,6 +982,86 @@
     ctx.fillStyle = '#E20612';
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  /* ── 로고 스타일 3종 ──
+     dot: 레드닷(기본) · ring: 빨간 원 + 검은 원형 테두리 · wetzlar: 흰 바탕 클래식 배지 */
+  var LOGO_INK = '#111827';
+
+  // 바깥 반지름 rOuter, 두께 thick 의 검은 원형 링
+  function strokeLogoRing(ctx, cx, cy, rOuter, thick){
+    ctx.beginPath();
+    ctx.arc(cx, cy, rOuter - thick / 2, 0, Math.PI * 2);
+    ctx.lineWidth = thick;
+    ctx.strokeStyle = LOGO_INK;
+    ctx.stroke();
+  }
+
+  // 배지 안의 필기체 'Leica' — 내장 SVG의 벡터 경로를 검은색으로 다시 채운다.
+  function drawLeicaScript(ctx, cx, cy, w, h){
+    var bx = leicaScriptBox;
+    if (leicaPath){
+      var s = Math.min(w / bx.w, h / bx.h);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(s, s);
+      ctx.translate(-(bx.x + bx.w / 2), -(bx.y + bx.h / 2));
+      ctx.fillStyle = LOGO_INK;
+      ctx.fill(leicaPath);
+      ctx.restore();
+      return;
+    }
+    // Path2D가 없는 환경: 이탤릭 세리프로 근사
+    ctx.save();
+    ctx.fillStyle = LOGO_INK;
+    ctx.font = 'italic 700 ' + h + 'px Georgia, "Times New Roman", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Leica', cx, cy - h * 0.06);
+    ctx.restore();
+  }
+
+  // 배지 아래 한 줄(대문자 · 자간 넓게). 원 안쪽 폭을 넘으면 자동으로 줄인다.
+  function badgeLine(ctx, text, cx, cy, r, relY, font, trackEm){
+    var fs = font, tr = fs * trackEm, w = 0, i;
+    for (i = 0; i < 10; i++){
+      ctx.font = '600 ' + fs + 'px ' + FONT_STACK;
+      tr = fs * trackEm;
+      w = measureTracked(ctx, text, tr);
+      var mid = relY - fs * 0.34;
+      var half = Math.sqrt(Math.max(0, (r * 0.87) * (r * 0.87) - mid * mid));
+      if (w <= half * 1.72) break;
+      fs *= 0.94;
+    }
+    ctx.font = '600 ' + fs + 'px ' + FONT_STACK;
+    ctx.fillStyle = LOGO_INK;
+    ctx.textAlign = 'left';
+    fillTracked(ctx, text, cx - w / 2, cy + relY, tr);
+  }
+
+  // Wetzlar 배지: 흰 바탕 + 검은 링 + 검은 필기체 + LEICA CAMERA / WETZLAR GERMANY
+  function drawWetzlarBadge(ctx, cx, cy, r){
+    ctx.save();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    strokeLogoRing(ctx, cx, cy, r, Math.max(0.8, r * 0.10));
+
+    var sw = r * 1.18, sh = sw * (leicaScriptBox.h / leicaScriptBox.w);
+    drawLeicaScript(ctx, cx, cy - r * 0.33, sw, sh);
+
+    badgeLine(ctx, 'LEICA CAMERA',    cx, cy, r, r * 0.31, r * 0.143, 0.16);
+    badgeLine(ctx, 'WETZLAR GERMANY', cx, cy, r, r * 0.60, r * 0.138, 0.16);
+    ctx.restore();
+  }
+
+  function drawLeicaMark(ctx, cx, cy, r, style){
+    style = style || 'dot';
+    if (style === 'wetzlar'){ drawWetzlarBadge(ctx, cx, cy, r); return; }
+    drawRedDot(ctx, cx, cy, r);
+    if (style === 'ring') strokeLogoRing(ctx, cx, cy, r * 1.09, Math.max(0.7, r * 0.09));
   }
 
   function drawFrame(ctx, L, item){
@@ -986,8 +1108,11 @@
     var fs1 = 10, fs2 = 6, fsMemo = 6, tracking = 0, memoLines = [], blockH = 0;
 
     // 빨간 점(라이카 로고)은 카메라명 왼쪽에 놓고, 그만큼 글줄 전체를 들여쓴다.
-    function dotBox(size){
+    function dotBox(size, style){
       var r = Math.max(1, size * 0.23);
+      if (style === 'wetzlar'){
+        r = Math.max(1.2, Math.min(size * 0.86, Math.max(1.2, bottomH * 0.40)));   // 배지 지름 ≈ 1.7×글자 크기(하단 여백을 넘지 않게)
+      }
       return { r: r, indent: r * 2 + size * 0.30 };
     }
 
@@ -997,7 +1122,7 @@
       fs2 = fs1 * 0.60;
       fsMemo = fs1 * 0.56;
       tracking = fs1 * 0.05;
-      var ind = st.redDot ? dotBox(fs1).indent : 0;
+      var ind = st.redDot ? dotBox(fs1, st.logoStyle).indent : 0;
 
       if (t1){
         ctx.font = '600 ' + fs1 + 'px ' + FONT_STACK;
@@ -1008,7 +1133,7 @@
           fs2 = fs1 * 0.60;
           fsMemo = fs1 * 0.56;
           tracking = fs1 * 0.05;
-          ind = st.redDot ? dotBox(fs1).indent : 0;
+          ind = st.redDot ? dotBox(fs1, st.logoStyle).indent : 0;
         }
       }
 
@@ -1031,7 +1156,7 @@
     if (top < L.bottomY) top = L.bottomY;
 
     // 확정된 크기에서도 폭을 넘는 문구는 줄이거나 말줄임 처리
-    var dot = dotBox(fs1);
+    var dot = dotBox(fs1, st.logoStyle);
     var hasDot = st.redDot && (t1 || t2 || memo);
     var indent = hasDot ? dot.indent : 0;
     var textX = innerX + indent;
@@ -1075,7 +1200,14 @@
       else if (t2d){ dotBase = baseline2; dotSize = fs2; }
       else { dotBase = top + fsMemo * 1.14; dotSize = fsMemo; }
       var dotY = dotBase - dotSize * 0.34;
-      drawLeicaMark(ctx, innerX + dot.r, dotY, dot.r);
+      if (st.logoStyle === 'wetzlar'){
+        // 큰 배지가 사진 영역을 침범하지 않게 하단 여백 안으로 살짝 밀어 넣는다
+        var roomTop = L.bottomY + Math.max(2, dot.r * 0.10);
+        var roomBottom = L.bottomY + bottomH - dot.r * 0.04 - 2;
+        if (dotY - dot.r < roomTop) dotY = roomTop + dot.r;
+        if (dotY + dot.r > roomBottom) dotY = roomBottom - dot.r;
+      }
+      drawLeicaMark(ctx, innerX + dot.r, dotY, dot.r, st.logoStyle);
     }
 
     // 아랫줄 (촬영값) + 오른쪽 날짜
@@ -1728,6 +1860,7 @@
   function syncControls(){
     var item = current();
     if (!item) return;
+    syncLogoStyleUI();
     els.line1.value = item.text1 || '';
     els.line2.value = item.text2 || '';
     els.date.value = item.date || '';
@@ -1926,6 +2059,23 @@
     scheduleRender();
   });
 
+  function syncLogoStyleUI(){
+    var on = !!state.redDot;
+    els.logoStyleSeg.setAttribute('aria-disabled', on ? 'false' : 'true');
+    els.logoStyleRow.style.opacity = on ? '1' : '.45';
+  }
+
+  els.logoStyleSeg.addEventListener('click', function(e){
+    if (!state.redDot) return;
+    var b = e.target.closest('button[data-logo]');
+    if (!b) return;
+    state.logoStyle = b.dataset.logo;
+    Array.prototype.forEach.call(els.logoStyleSeg.querySelectorAll('button'), function(x){
+      x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    });
+    scheduleRender();
+  });
+
   els.bgRow.addEventListener('click', function(e){
     var b = e.target.closest('button[data-bg]');
     if (!b) return;
@@ -1987,6 +2137,7 @@
     b.setAttribute('aria-pressed', state[key] ? 'true' : 'false');
     if (key === 'showLens' || key === 'showSpecs') refillAllAuto();
     if (key === 'showDate') updateDateHint();
+    if (key === 'redDot') syncLogoStyleUI();
     scheduleRender();
   });
 
@@ -2090,6 +2241,7 @@
     logo: function(){ return { ready: leicaReady(), w: leicaImg ? leicaImg.naturalWidth : 0,
                                h: leicaImg ? leicaImg.naturalHeight : 0,
                                tainted: leicaTainted, path2d: !!leicaPath,
+                               style: state.logoStyle, scriptBox: leicaScriptBox,
                                mode: (leicaReady() && !leicaTainted) ? 'image' : (leicaPath ? 'path' : 'dot'),
                                src: LEICA_LOGO_SRC.slice(0, 40) }; }
   };
